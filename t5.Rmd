@@ -1,0 +1,305 @@
+---
+title: "Tarea 5"
+author: "Alfaro, Arenas, Rebolledo"
+date: "16 de noviembre de 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Pregunta 2
+### Pregunta 2.1
+
+```{r echo=FALSE, message=FALSE}
+library(quantmod)
+library(dplyr)
+library(WDI)
+library(tidyverse)
+library(tidyquant)
+library(pdfetch)
+library(gridExtra)
+
+```
+
+
+```{r pressure}
+appl <- tq_get("AAPL",
+                   get = "stock.prices",
+                   from = "2000-01-01",
+                   to = "2018-08-01",
+                   periodicity = "monthly")
+
+msft <- tq_get("MSFT",
+               get = "stock.prices",
+               from = "2000-01-01",
+               to = "2018-08-01",
+               periodicity = "monthly")
+```
+
+### Pregunta 2.2
+#### Parte a
+```{r}
+raapl <- appl %>% 
+  tq_transmute(select = close,
+               mutate_fun = periodReturn,
+               period = "monthly",
+               type = "log",
+               col_rename = "retornos.mensuales")
+
+rmft <- msft %>% 
+  tq_transmute(select = close,
+               mutate_fun = periodReturn,
+               period = "monthly",
+               type = "log",
+               col_rename = "retornos.mensuales")
+```
+#### Parte b
+```{r }
+rmft$acum <- cumsum(rmft$retornos.mensuales)
+raapl$acum <- cumsum(raapl$retornos.mensuales)
+```
+### Parte c
+```{r }
+plot.apple<-raapl %>%  
+  ggplot(mapping = aes(x = date, y=retornos.mensuales)) +
+  geom_line()
+  labs(title = "Retornos mensuales Apple",
+       x = "Retornos mensuales", y = "Densidad") +
+  scale_fill_tq()
+
+plot.msft<-rmft %>%  
+  ggplot(mapping = aes(x = date, y=retornos.mensuales)) +
+  geom_line() +
+  labs(title = "Retornos mensuales Microsoft",
+       x = "Retornos mensuales", y = "Densidad") +
+  scale_fill_tq()
+
+grid.arrange(plot.apple, plot.msft, nrow=1, ncol=2)
+```
+
+```{r }
+plot.rapple<-raapl %>%  
+  ggplot(mapping = aes(x = date, y = acum))+
+  geom_line() +
+  labs(title = "Retornos acumulados Apple",
+       x = "Retornos mensuales", y = "Densidad") +
+  scale_fill_tq()
+plot.rmsft<-rmft %>%  
+  ggplot(mapping = aes(x = date, y = acum))+
+  geom_line() +
+  labs(title = "Retornos acumulados Microsoft",
+       x = "Retornos mensuales", y = "Densidad") +
+  scale_fill_tq()
+
+grid.arrange(plot.rapple, plot.rmsft, nrow=1, ncol=2)
+```
+
+## Pregunta 3
+### Pregunta 3.a
+```{r }
+set.seed(101)
+
+rep = 10000
+
+betas = matrix(NA, nrow = rep, ncol = 8)
+
+b0 = 2
+b1 = 2.5
+b2 = 1
+
+n=c(50,100,500,1000)  #tamaño muestral
+
+#Caso 1
+for (j in 1:4) {
+  
+  for (i in 1:rep) {
+    x1 = rnorm(n[j],20,1)
+    e = rnorm(n[j],0,1)
+    u = rnorm(n[j],0,1)
+    x2 = 0.8*x1 + e
+    y = b0 + b1*x1 + b2*x2 + u
+    
+    m1 = lm(y~x1)
+    betas[i,j]=m1$coefficients[[1]]
+    betas[i,j+4]=m1$coefficients[[2]]
+    
+  }
+}
+betas1=data.frame(betas)
+
+
+E_b0_50 = mean(betas1$X1)
+E_b0_100 = mean(betas1$X2)
+E_b0_500 = mean(betas1$X3)
+E_b0_1000 = mean(betas1$X4)
+E_b1_50 = mean(betas1$X5)
+E_b1_100 = mean(betas1$X6)
+E_b1_500 = mean(betas1$X7)
+E_b1_1000 = mean(betas1$X8)
+
+v_b0_50 = var(betas1$X1)
+v_b0_100 = var(betas1$X2)
+v_b0_500 = var(betas1$X3)
+v_b0_1000 = var(betas1$X4)
+v_b1_50 = var(betas1$X5)
+v_b1_100 = var(betas1$X6)
+v_b1_500 = var(betas1$X7)
+v_b1_1000 = var(betas1$X8)
+
+
+#Sesgo
+ses_b0_50 = E_b0_50 - b0 
+ses_b0_100 = E_b0_100 - b0
+ses_b0_500 = E_b0_500 - b0
+ses_b0_1000 = E_b0_1000 - b0
+#Para esta caso se observa que el sesgo sí desaparece a medida que crece el tamano muestral,
+#puesto que la expresión de sus sesgo depende negativamente de n.
+
+ses_b1_50 = E_b1_50 - b1 
+ses_b1_100 = E_b1_100 - b1
+ses_b1_500 = E_b1_500 - b1
+ses_b1_1000 = E_b1_1000 - b1
+#Para este caso el sesgo no desaparece cuando aumenta n, ya que su sesgo no depende directamente de n,
+#sino de la razon entre la covarianza entre x1 y x2, y la varianza de x1.
+```
+### Pregunta 3.b
+```{r }
+g1 <- ggplot(betas1)+
+  geom_histogram(aes(betas1[,5], y=..density..), 
+                 col="black", bins=30)+
+  stat_function(fun=dnorm, args=list(mean=2.5, sd=sd(betas1[,5])),
+                geom="line", colour="blue", size=1.2)+
+  ylab("Densidad") + ggtitle("n=50") + xlab(expression(b1))
+
+g2 <- ggplot(betas1)+
+  geom_histogram(aes(betas1[,6], y=..density..), col="black", bins=30)+
+  stat_function(fun=dnorm, args=list(mean=2.5, sd=sd(betas1[,6])),
+                geom="line", colour="blue", size=1.2)+
+  ylab("Densidad") + ggtitle("n=100") + xlab(expression(b1))
+
+g3 <- ggplot(betas1)+
+  geom_histogram(aes(betas1[,7], y=..density..), col="black", bins=30)+
+  stat_function(fun=dnorm, args=list(mean=2.5, sd=sd(betas1[,7])),
+                geom="line", colour="blue", size=1.2)+
+  ylab("Densidad") + ggtitle("n=500") + xlab(expression(b1))
+
+g4 <- ggplot(betas1)+
+  geom_histogram(aes(betas1[,8], y=..density..), col="black", bins=30)+
+  stat_function(fun=dnorm, args=list(mean=2.5, sd=sd(betas1[,8])),
+                geom="line", colour="blue", size=1.2)+
+  ylab("Densidad") + ggtitle("n=1000") + xlab(expression(b1))
+
+grid.arrange(g1, g2, g3, g4, nrow=2, ncol=2)
+
+#Para ilustrar mejor que el sesgo no desaparece, pero la varianza sí se reduce:
+
+ggplot(betas1)+
+  geom_histogram(aes(betas1[,5], y=..density.., fill="n=50"), bins=300)+
+  geom_histogram(aes(betas1[,6], y=..density.., fill="n=100"), bins=300)+
+  geom_histogram(aes(betas1[,7], y=..density.., fill="n=500"), bins=300)+
+  geom_histogram(aes(betas1[,8], y=..density.., fill="n=1000"), bins=300)+
+  scale_colour_manual("",
+                      values = c("n=50"="cyan", "n=100"="pink", "n=500"="red", "n=1000"="green"))+
+  ylab("Densidad") + xlab(expression(b1)) + labs(fill='Tamaño muestral')
+```
+### Pregunta 3.c
+```{r }
+betas2 = matrix(NA, nrow = rep, ncol = 8)
+
+for (j in 1:4) {
+  
+  for (i in 1:rep) {
+    x1 = rnorm(n[j],20,1)
+    e = rnorm(n[j],0,1)
+    u = rnorm(n[j],0,1)
+    x2 = runif(n[j],0,1)
+    y = b0 + b1*x1 + b2*x2 + u
+    
+    m1 = lm(y~x1)
+    betas2[i,j]=m1$coefficients[[1]]
+    betas2[i,j+4]=m1$coefficients[[2]]
+    
+  }
+}
+
+betas3=data.frame(betas2)
+
+#a)
+summary(betas1)
+
+E_b0_unif_50 = mean(betas3$X1)
+E_b0_unif_100 = mean(betas3$X2)
+E_b0_unif_500 = mean(betas3$X3)
+E_b0_unif_1000 = mean(betas3$X4)
+E_b1_unif_50 = mean(betas3$X5)
+E_b1_unif_100 = mean(betas3$X6)
+E_b1_unif_500 = mean(betas3$X7)
+E_b1_unif_1000 = mean(betas3$X8)
+
+v_b0_unif_50 = var(betas3$X1)
+v_b0_unif_100 = var(betas3$X2)
+v_b0_unif_500 = var(betas3$X3)
+v_b0_unif_1000 = var(betas3$X4)
+v_b1_unif_50 = var(betas3$X5)
+v_b1_unif_100 = var(betas3$X6)
+v_b1_unif_500 = var(betas3$X7)
+v_b1_unif_1000 = var(betas3$X8)
+
+
+#Sesgo
+ses_b0_unif_50 = E_b0_unif_50 - b0 
+ses_b0_unif_100 = E_b0_unif_100 - b0
+ses_b0_unif_500 = E_b0_unif_500 - b0
+ses_b0_unif_1000 = E_b0_unif_1000 - b0
+#Existe sesgo, y no se reduce con el tamano muestral.
+
+ses_b1_unif_50 = E_b1_unif_50 - b1 
+ses_b1_unif_100 = E_b1_unif_100 - b1
+ses_b1_unif_500 = E_b1_unif_500 - b1
+ses_b1_unif_1000 = E_b1_unif_1000 - b1
+#No existe sesgo, ya que x1 es independiente de x2 por construcción (y con esto la covarianza
+#entre ambas es cero).
+
+
+#b)
+g5 <- ggplot(betas3)+
+  geom_histogram(aes(betas3[,5], y=..density..), col="black", bins=30)+
+  stat_function(fun=dnorm, args=list(mean=2.5, sd=sd(betas3[,5])),
+                geom="line", colour="blue", size=1.2)+
+  ylab("Densidad") + ggtitle("n=50") + xlab(expression(b1))
+
+g6 <- ggplot(betas3)+
+  geom_histogram(aes(betas3[,6], y=..density..), col="black", bins=30)+
+  stat_function(fun=dnorm, args=list(mean=2.5, sd=sd(betas3[,6])),
+                geom="line", colour="blue", size=1.2)+
+  ylab("Densidad") + ggtitle("n=100") + xlab(expression(b1))
+
+g7 <- ggplot(betas3)+
+  geom_histogram(aes(betas3[,7], y=..density..), col="black", bins=30)+
+  stat_function(fun=dnorm, args=list(mean=2.5, sd=sd(betas3[,7])),
+                geom="line", colour="blue", size=1.2)+
+  ylab("Densidad") + ggtitle("n=500") + xlab(expression(b1))
+
+g8 <- ggplot(betas3)+
+  geom_histogram(aes(betas3[,8], y=..density..), col="black", bins=30)+
+  stat_function(fun=dnorm, args=list(mean=2.5, sd=sd(betas3[,8])),
+                geom="line", colour="blue", size=1.2)+
+  ylab("Densidad") + ggtitle("n=1000") + xlab(expression(b1))
+
+grid.arrange(g5, g6, g7, g8, nrow=2, ncol=2)
+
+
+#Para ilustrar mejor que el sesgo acá no existe y la varianza se reduce:
+
+ggplot(betas3)+
+  geom_histogram(aes(betas3[,5], y=..density.., fill="n=50"), bins=300)+
+  geom_histogram(aes(betas3[,6], y=..density.., fill="n=100"), bins=300)+
+  geom_histogram(aes(betas3[,7], y=..density.., fill="n=500"), bins=300)+
+  geom_histogram(aes(betas3[,8], y=..density.., fill="n=1000"), bins=300)+
+  scale_colour_manual("",
+                      values = c("n=50"="cyan", "n=100"="pink", "n=500"="red", "n=1000"="green"))+
+  ylab("Densidad") + xlab(expression(b1)) + labs(fill='Tamaño muestral')
+
+```
